@@ -1,4 +1,4 @@
-workload:
+workloads:
   swarm-worker-0:
     jobs:
       - "stream:xxrtve1"

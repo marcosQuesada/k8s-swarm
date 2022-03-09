@@ -7,8 +7,10 @@ import (
 	swarm2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/app/swarm"
 	"github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s"
 	operator2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator"
+	"github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator/configmap"
 	pod2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator/pod"
 	statefulset2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator/statefulset"
+	ht "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/transport/http"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	appsv1 "k8s.io/api/apps/v1"
@@ -28,12 +30,12 @@ var externalCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Infof("controller external listening on namespace %s label %s Version %s release date %s http server on port %s", namespace, watchLabel, cfg.Commit, cfg.Date, cfg.HttpPort)
 
-		st := swarm2.NewState(config.Jobs)
-
 		cl := k8s.BuildExternalClient()
-
-		nop := swarm2.NewExecutor(nil) // @TODO: HERE!
-		app := swarm2.NewApp(st, nop)
+		dl := configmap.NewProvider(cl, namespace, workersConfigMapName, watchLabel)
+		vst := ht.NewVersionProvider(cfg.HttpPort)
+		ex := swarm2.NewExecutor(dl, vst)
+		st := swarm2.NewState(config.Jobs, watchLabel)
+		app := swarm2.NewApp(st, ex)
 
 		podCla := pod2.NewListWatcherAdapter(cl, namespace)
 		podH := pod2.NewHandler(app)

@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-const appID = "k8s-swarm-worker"
+const appID = "swarm-worker"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{

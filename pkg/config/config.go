@@ -60,7 +60,7 @@ type Workload struct {
 
 // Workloads defines all workload assignations to workers
 type Workloads struct {
-	Workloads map[string]*Workload `mapstructure:"workload" json:"workload"`
+	Workloads map[string]*Workload `mapstructure:"workloads" json:"workloads"`
 	Version   int64                `mapstructure:"version" json:"version"`
 }
 

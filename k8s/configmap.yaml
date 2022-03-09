@@ -5,7 +5,7 @@ metadata:
   namespace: swarm
 data:
   config.yml: |
-    workload:
+    workloads:
       swarm-worker-0:
         jobs:
           - "stream:zrtve2:new"

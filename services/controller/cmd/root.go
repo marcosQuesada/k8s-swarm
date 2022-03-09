@@ -15,6 +15,7 @@ var (
 	config               *cfg.Workload
 	namespace            string
 	watchLabel           string
+	workersConfigMapName string
 	podControllerWorkers int
 	stsControllerWorkers int
 )
@@ -55,14 +56,19 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	cfg.SetCoreFlags(rootCmd, "controller")
 
-	rootCmd.PersistentFlags().StringVar(&namespace, "namespace", "k8s-swarm", "namespace to listen")
+	rootCmd.PersistentFlags().StringVar(&namespace, "namespace", "swarm", "namespace to listen")
 	if p := os.Getenv("NAMESPACE"); p != "" {
 		namespace = p
 	}
 
-	rootCmd.PersistentFlags().StringVar(&watchLabel, "label", "k8s-swarm-slave", "label to watch statefulsets and pods")
+	rootCmd.PersistentFlags().StringVar(&watchLabel, "label", "swarm-slave", "label to watch statefulsets and pods")
 	if p := os.Getenv("WATCHED_LABEL"); p != "" {
 		watchLabel = p
+	}
+
+	rootCmd.PersistentFlags().StringVar(&workersConfigMapName, "configmap", "swarm-worker-config", "workers configmap name")
+	if p := os.Getenv("WORKERS_CONFIGMAP_NAME"); p != "" {
+		workersConfigMapName = p
 	}
 
 	rootCmd.PersistentFlags().IntVar(&podControllerWorkers, "pod", 1, "workers on pod controller")

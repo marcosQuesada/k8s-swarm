@@ -42,10 +42,11 @@ func (v *VersionProvider) Assignation(ctx context.Context, IP net.IP) (*config.W
 		return nil, fmt.Errorf("unexpected exchange response status code %d", res.StatusCode)
 	}
 
-	token := &config.Workload{}
-	err = json.NewDecoder(res.Body).Decode(token)
+	wk := &config.Workload{}
+	err = json.NewDecoder(res.Body).Decode(wk)
 	if err != nil {
 		return nil, err
 	}
-	return token, nil
+
+	return wk, nil
 }

@@ -17,14 +17,14 @@ var (
 
 // Config loaded app config
 type Config struct {
-	Workload map[string]*config.Workload `mapstructure:"workload"`
+	Workload map[string]*config.Workload `mapstructure:"workloads"`
 	Version  int64                       `mapstructure:"version"`
 }
 
 func (cfg *Config) HostKeySet(host string) ([]config.Job, error) {
 	v, ok := cfg.Workload[host]
 	if !ok {
-		return nil, fmt.Errorf("unable to found host %s keySet config", host)
+		return nil, fmt.Errorf("unable to find host %s keySet config %v", host, cfg)
 	}
 
 	log.Infof("Loaded %d keys on Host %s", len(v.Jobs), host)

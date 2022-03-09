@@ -70,23 +70,13 @@ func (w *Worker) conciliate() {
 
 		w.state = ev
 		w.events = append(w.events, newStateEvent(w.state))
-	case Syncing: // @TODO
-		//ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		//defer cancel()
-		//if err := w.delegated.Assign(ctx, w, w.config); err != nil {
-		//	log.Errorf("error notifying worker %s Workloads %v", w.Name, err)
-		//	w.events = append(w.events, newErrorEvent(err))
-		//	return
-		//}
-		//w.state = WaitingSyncComplete
-		//w.events = append(w.events, newStateEvent(w.state))
 	case Synced:
-		//if w.version == w.assignation.Version {
-		//	return
-		//}
-		//w.version = w.assignation.Version
-		//w.state = Synced
-		//w.events = append(w.events, newVersionUpdateEvent(w.version))
+		if w.version == w.assignation.Version {
+			return
+		}
+		w.version = w.assignation.Version
+		w.state = Synced
+		w.events = append(w.events, newVersionUpdateEvent(w.version))
 	}
 
 	if w.state != Synced {

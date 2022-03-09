@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: swarm-worker
   serviceName: swarm-worker
-  replicas: 3
+  replicas: 2
   template:
     metadata:
       labels:

@@ -13,14 +13,17 @@ rules:
       - get
       - watch
       - list
+      - patch
   - apiGroups: [""]
     resources:
       - pods
       - statefulsets
+      - configmaps
     verbs:
       - get
       - watch
       - list
+      - update
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

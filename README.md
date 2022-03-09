@@ -11,7 +11,7 @@ Example:
   - Video
   - Iot...
 
-## Evolutions
+## Further Iterations
 - Jobs with QoS, enabling resource reservation in the pod space
   - moving keys from:
     - cnbc -> cnbc:100 (cnbc consumer will occupy 100% of pod resources)
@@ -27,7 +27,18 @@ docker build -t swarm-controller . --build-arg SERVICE=controller --build-arg CO
 docker build -t swarm-worker . --build-arg SERVICE=worker --build-arg COMMIT=$(git rev-list -1 HEAD) --build-arg DATE=$(date +%m-%d-%Y)
 ```
 
-
+## Minikube rollout
+```
+docker tag swarm-controller:latest swarm-controller:a4c0d90019d8
+```
+```
+kubectl set image deployment/swarm-controller swarm-controller=swarm-controller:88f14f631eea -n swarm
+kubectl set image statefulset/swarm-worker swarm-worker=swarm-worker:5d6be251a488 -n swarm
+```
+```
+kubectl rollout restart deployment/swarm-controller
+kubectl rollout restart statefulset/swarm-worker
+```
 ## Pending
 - Clean configs
   - local (Single node)

@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const conciliationFrequency = time.Second
+const conciliationFrequency = time.Second * 5
 
 var ErrNoAppLabelFound = errors.New("no app label found ")
 

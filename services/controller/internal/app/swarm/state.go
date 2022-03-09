@@ -16,7 +16,7 @@ type state struct {
 }
 
 func NewState(keySet []config.Job, setName string) *state {
-	log.Infof("Mongo sharder initialized with %d total Workloads", len(keySet))
+	log.Infof("Swarm sharder initialized with %d total Workloads", len(keySet))
 	return &state{
 		keySet:  keySet,
 		setName: setName,
@@ -37,7 +37,7 @@ func (a *state) BalanceWorkload(totalWorkers int, version int64) error {
 
 	totalParts := int(math.Ceil(float64(len(a.keySet)) / float64(totalWorkers)))
 	for i := 0; i < totalWorkers; i++ {
-		workerName := fmt.Sprintf("%s_%d", a.setName, i)
+		workerName := fmt.Sprintf("%s-%d", a.setName, i)
 		if _, ok := a.config.Workloads[workerName]; !ok {
 			a.config.Workloads[workerName] = &config.Workload{}
 		}
@@ -49,6 +49,8 @@ func (a *state) BalanceWorkload(totalWorkers int, version int64) error {
 		}
 
 		a.config.Workloads[workerName] = &config.Workload{Jobs: a.keySet[start:end]}
+
+		log.Infof("Worker %s total jobs %d", workerName, len(a.keySet[start:end]))
 	}
 
 	a.config.Version = version
@@ -64,7 +66,7 @@ func (a *state) BalanceWorkload(totalWorkers int, version int64) error {
 func (a *state) cleanAssignations(totalWorkers int) {
 	orgSize := len(a.config.Workloads)
 	for i := totalWorkers; i < orgSize; i++ {
-		delete(a.config.Workloads, fmt.Sprintf("%s_%d", a.setName, i))
+		delete(a.config.Workloads, fmt.Sprintf("%s-%d", a.setName, i))
 	}
 }
 
@@ -72,7 +74,7 @@ func (a *state) Workload(workerIdx int) (*config.Workload, error) {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
 
-	asg, ok := a.config.Workloads[fmt.Sprintf("%s_%d", a.setName, workerIdx)]
+	asg, ok := a.config.Workloads[fmt.Sprintf("%s-%d", a.setName, workerIdx)]
 	if !ok {
 		return nil, fmt.Errorf("Workloads not found on index %d", workerIdx)
 	}
@@ -80,11 +82,11 @@ func (a *state) Workload(workerIdx int) (*config.Workload, error) {
 	return asg, nil
 }
 
-func (a *state) Workloads() map[string]*config.Workload {
+func (a *state) Workloads() *config.Workloads {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
 
-	return a.config.Workloads
+	return a.config
 }
 
 func (a *state) size() int {

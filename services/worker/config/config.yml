@@ -1,14 +1,12 @@
-workload:
-#  swarm-worker-0:
-#    jobs:
+workloads:
+  swarm-worker-0:
+    jobs:
       - "stream:xxrtve1"
       - "stream:xxrtve2"
       - "stream:zrtve2:new"
       - "stream:zrtve1:new"
       - "stream:zrtve0:new"
       - "stream:cctv0:updated"
-      - "history:new"
-      - "teammember:new"
       - "stream:xxctv3:new"
       - "stream:cctv3:updated"
       - "stream:xxctv0:updated"
@@ -28,13 +26,11 @@ workload:
       - "stream:xacb03:updated"
       - "stream:xacb04:updated"
       - "stream:sportnews0:updated"
-      - "bikes:updated"
-      - "bikes:deleted"
   swarm-worker-2:
     jobs:
-      - "cars:new"
-      - "cars:updated"
-      - "cars:deleted"
-      - "bikes:new"
+      - "stream:cars:new"
+      - "stream:cars:updated"
+      - "stream:cars:deleted"
+      - "stream:bikes:new"
 
 version: 1

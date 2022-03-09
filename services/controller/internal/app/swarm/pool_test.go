@@ -131,3 +131,7 @@ func (f *fakeCaller) Assignation(ctx context.Context, w *Worker) (*config.Worklo
 	}
 	return v, nil
 }
+
+func (f *fakeCaller) RestartWorkerPool(ctx context.Context) error {
+	return nil
+}

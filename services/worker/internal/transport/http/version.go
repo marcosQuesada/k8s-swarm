@@ -30,6 +30,7 @@ func NewVersionChecker(p provider) *VersionChecker {
 // versionHandler replies current release hash and date
 func (a *VersionChecker) versionHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(httpPkg.ContentType, httpPkg.JSONContentType)
+	log.Infof("requested version, got %d jobs %v", a.accessor.Version(), a.accessor.Workload())
 	wrk := &config.Workload{
 		Jobs:    a.accessor.Workload(),
 		Version: a.accessor.Version(),

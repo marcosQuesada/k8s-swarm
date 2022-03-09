@@ -7,7 +7,7 @@ import (
 )
 
 func TestParsePodIndexFromStatefulsetPodName(t *testing.T) {
-	podName := "k8s-swarm-mongo-sharder-slave-0"
+	podName := "swarm-worker-0"
 
 	p := &api.Pod{
 		TypeMeta:   metav1.TypeMeta{},

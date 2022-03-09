@@ -8,6 +8,7 @@ import (
 	"net"
 	"sort"
 	"sync"
+	"time"
 )
 
 type assigner interface {
@@ -19,6 +20,7 @@ type assigner interface {
 type Delegated interface {
 	Assign(ctx context.Context, w *config.Workloads) error
 	Assignation(ctx context.Context, w *Worker) (*config.Workload, error)
+	RestartWorkerPool(ctx context.Context) error
 }
 
 type pool struct {
@@ -28,6 +30,7 @@ type pool struct {
 	version        int64
 	expectedSize   int
 	underVariation bool
+	refreshedPool  bool
 	stopChan       chan struct{}
 	mutex          sync.RWMutex
 }
@@ -124,7 +127,7 @@ func (a *pool) Events() map[string][]Event {
 	return e
 }
 
-func (a *pool) conciliate() { // @TODO: CHANGE IT
+func (a *pool) conciliate() {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
@@ -138,39 +141,44 @@ func (a *pool) conciliate() { // @TODO: CHANGE IT
 
 	log.Infof("state contiliation version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
 
-	//for _, w := range a.geAllWorkers() {
-	//
-	//	// @TODO:
-	//	//data := fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`, time.Now().String())
-	//	//resultDeployment, err = p.Client.AppsV1().Deployments(p.Namespace).Patch(context.Background(), deployment.Name, types.StrategicMergePatchType, []byte(data), metav1.PatchOptions{FieldManager: "kubectl-rollout"})
-	//
-	//	asg, err := a.state.Workloads(w.Index)
-	//	if err != nil {
-	//		log.Errorf("unexpected error getting config %v", err)
-	//		return
-	//	}
-	//
-	//	if asg.Equals(w.GetAssignation()) {
-	//		continue
-	//	}
-	//
-	//	log.Infof("Conciliation loop, config to slave %s on Version %d", w.Name, a.version)
-	//	w.Assign(asg)
-	//}
-	//
-	//if a.expectedSize != len(a.index) {
-	//	log.Infof("Pool still on variation, expected %d got %d", a.expectedSize, len(a.index))
-	//	return
-	//}
-	//
-	//// ensure all workers are in the same version
-	//for _, w := range a.index {
-	//	wv := w.GetVersion()
-	//	if wv != a.version {
-	//		log.Infof("Pool still on variation, worker %s still on version %d", w.Name, wv)
-	//		return
-	//	}
-	//}
+	if !a.refreshedPool {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		if err := a.delegated.RestartWorkerPool(ctx); err != nil {
+			log.Errorf("unable to refresh worker pool, error %v", err)
+		} else {
+			a.refreshedPool = true
+		}
+	}
+
+	for _, w := range a.geAllWorkers() {
+		asg, err := a.state.Workload(w.Index)
+		if err != nil {
+			log.Errorf("unexpected error getting config %v", err)
+			return
+		}
+
+		if asg.Equals(w.GetAssignation()) {
+			continue
+		}
+
+		log.Infof("Conciliation loop, config to slave %s on Version %d", w.Name, a.version)
+		w.Assign(asg)
+	}
+
+	if a.expectedSize != len(a.index) {
+		log.Infof("Pool still on variation, expected %d got %d", a.expectedSize, len(a.index))
+		return
+	}
+
+	// ensure all workers are in the same version
+	for _, w := range a.index {
+		wv := w.GetVersion()
+		if wv != a.version {
+			log.Infof("Pool still on variation, worker %s still on version %d", w.Name, wv)
+			return
+		}
+	}
 
 	log.Info("Stopping conciliation loop, variation completed!")
 	a.underVariation = false
