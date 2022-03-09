@@ -14,6 +14,7 @@ rules:
       - watch
       - list
       - patch
+      - delete
   - apiGroups: [""]
     resources:
       - pods

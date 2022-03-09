@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const defaultSleepBeforeNotify = time.Second * 5
+
 type assigner interface {
 	BalanceWorkload(totalWorkers int, version int64) error
 	Workloads() *config.Workloads
@@ -57,34 +59,37 @@ func (a *pool) UpdateExpectedSize(newSize int) {
 		return
 	}
 
-	// @TODO: Simplify this logic
-	if a.expectedSize != 0 {
-		ws := a.geAllWorkers()
-		totalToRefresh := newSize
-		if newSize > a.expectedSize {
-			totalToRefresh = a.expectedSize
-		}
-
-		for i := 0; i < totalToRefresh; i++ {
-			w := ws[i]
-			w.MarkToRefresh()
-		}
-	}
-
+	previousSize := a.expectedSize
 	a.expectedSize = newSize
 	a.underVariation = true
 	a.version++
 
-	log.Infof("Pool Version Update %d Size From %d to %d", a.version, a.expectedSize, newSize)
+	log.Infof("Pool Version Update %d Size From %d to %d", a.version, previousSize, newSize)
 
 	if err := a.state.BalanceWorkload(newSize, a.version); err != nil {
 		log.Errorf("err on balance started %v", err)
 	}
 
-	log.Infof("state workload updarte to version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
+	log.Infof("state workload update to version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
 	if err := a.delegated.Assign(context.Background(), a.state.Workloads()); err != nil {
 		log.Errorf("config error %v", err)
 	}
+
+	if previousSize == 0 {
+		return
+	}
+
+	ws := a.geAllWorkers()
+	totalToRefresh := newSize
+	if newSize > a.expectedSize {
+		totalToRefresh = a.expectedSize
+	}
+	log.Infof("Total %d Workers to Refresh to version %d", totalToRefresh, a.version)
+	for i := 0; i < totalToRefresh; i++ {
+		w := ws[i]
+		w.MarkToRefresh()
+	}
+
 }
 
 func (a *pool) AddWorkerIfNotExists(idx int, name string, IP net.IP) bool {
@@ -166,59 +171,37 @@ func (a *pool) conciliate() {
 
 	log.Infof("state contiliation version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
 
-	//if !a.refreshedPool {
-	//	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	//	defer cancel()
-	//	if err := a.delegated.RestartWorkerPool(ctx); err != nil {
-	//		log.Errorf("unable to refresh worker pool, error %v", err)
-	//	} else {
-	//		a.refreshedPool = true
-	//	}
-	//}
-	//
-	for _, w := range a.geAllWorkers() {
-		if w.NeedsRefresh() {
-			go func(wn string) {
-				time.Sleep(time.Second * 10)
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				if err := w.delegated.RestartWorker(ctx, wn); err != nil {
-					log.Errorf("unable to restart worker, error %v", err)
-					return
-				}
-				w.MarkRefreshed()
-			}(w.Name)
-		}
-		//asg, err := a.state.Workload(w.Index)
-		//if err != nil {
-		//	log.Errorf("unexpected error getting config %v", err)
-		//	return
-		//}
-		//
-		//if asg.Equals(w.GetAssignation()) {
-		//	continue
-		//}
-		//
-		//log.Infof("Conciliation loop, config to slave %s on Version %d", w.Name, a.version)
-		//w.Assign(asg)
-	}
-
-	if a.expectedSize != len(a.index) {
-		log.Infof("Pool still on variation, expected %d got %d", a.expectedSize, len(a.index))
+	if a.refreshedPool {
+		a.underVariation = false
 		return
 	}
 
-	// ensure all workers are in the same version
-	//for _, w := range a.index {
-	//	wv := w.GetVersion()
-	//	if wv != a.version {
-	//		log.Infof("Pool still on variation, worker %s still on version %d", w.Name, wv)
-	//		return
-	//	}
-	//}
+	for _, w := range a.geAllWorkers() {
+		if !w.NeedsRefresh() {
+			continue
+		}
+
+		log.Infof("Request scheduled restart to %s", w.Name)
+		go a.requestRestart(context.Background(), w)
+	}
+	a.refreshedPool = true
 
 	log.Info("Stopping conciliation loop, variation completed!")
 	a.underVariation = false
+}
+
+func (a *pool) requestRestart(ctx context.Context, w *Worker) error {
+	log.Infof("Scheduling worker %s refresh", w.Name)
+	time.Sleep(defaultSleepBeforeNotify)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	if err := w.delegated.RestartWorker(ctx, w.Name); err != nil {
+		log.Errorf("unable to restart worker, error %v", err)
+		return err
+	}
+	w.MarkRefreshed()
+	return nil
 }
 
 func (a *pool) geAllWorkers() []*Worker {

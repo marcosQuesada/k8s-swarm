@@ -23,6 +23,10 @@ func (a *App) Assign(w *cfg.Workload) error {
 	}
 
 	i, e := a.state.Difference(w)
+	if len(i) == 0 && len(e) == 0 {
+		return nil
+	}
+
 	log.Infof("Workload State Updated version %d includes %v excludes %v", w.Version, i, e)
 	return nil
 }

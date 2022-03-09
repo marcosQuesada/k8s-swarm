@@ -1,15 +1,16 @@
-# K8s Swarm
+# K8s Swarm Operator
 
 Collaborative Workload consumption
-- where parallel job processing does not increase overall performance
+- scenarios where parallel job processing does not increase overall performance
 - at least once semantics
-- Long running jobs
-  - Database snapshot/backup
+- Long run jobs
+- Consume real time streams (without in-flight)
 
 Example:
 - Unbounded stream consumption
   - Video
-  - Iot...
+  - Iot streams
+- Database snapshot/backup
 
 ## Further Iterations
 - Jobs with QoS, enabling resource reservation in the pod space
@@ -32,8 +33,8 @@ docker build -t swarm-worker . --build-arg SERVICE=worker --build-arg COMMIT=$(g
 docker tag swarm-controller:latest swarm-controller:a4c0d90019d8
 ```
 ```
-kubectl set image deployment/swarm-controller swarm-controller=swarm-controller:88f14f631eea -n swarm
-kubectl set image statefulset/swarm-worker swarm-worker=swarm-worker:5d6be251a488 -n swarm
+kubectl set image deployment/swarm-controller swarm-controller=swarm-controller:01a68000eb00 -n swarm
+kubectl set image statefulset/swarm-worker swarm-worker=swarm-worker:2ddc673264ed -n swarm
 ```
 ```
 kubectl rollout restart deployment/swarm-controller

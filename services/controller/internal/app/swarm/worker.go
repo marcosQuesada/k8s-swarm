@@ -33,7 +33,6 @@ func newWorker(idx int, name string, IP net.IP, d Delegated, freq time.Duration)
 		delegated: d,
 	}
 
-	//go wait.Until(w.conciliate, freq, w.stopChan)
 	return w
 }
 
@@ -45,18 +44,20 @@ func (w *Worker) NeedsRefresh() bool {
 }
 
 func (w *Worker) MarkToRefresh() {
+	log.Infof("worker %s marked to refresh", w.Name)
 	w.stateMutex.Lock()
 	defer w.stateMutex.Unlock()
 	w.state = NeedsRefresh
 }
 
 func (w *Worker) MarkRefreshed() {
+	log.Infof("worker %s marked refreshed", w.Name)
 	w.stateMutex.Lock()
 	defer w.stateMutex.Unlock()
 	w.state = Syncing
 }
 
-func (w *Worker) conciliate() {
+func (w *Worker) conciliate() { // @TODO: FIX!
 	w.stateMutex.Lock()
 	defer w.stateMutex.Unlock()
 
