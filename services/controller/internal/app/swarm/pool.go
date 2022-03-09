@@ -2,6 +2,7 @@ package swarm
 
 import (
 	"context"
+	"fmt"
 	"github.com/marcosQuesada/k8s-swarm/pkg/config"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -13,14 +14,13 @@ import (
 
 type assigner interface {
 	BalanceWorkload(totalWorkers int, version int64) error
-	Workload(workerIdx int) (*config.Workload, error) // @TODO: REMOVE IT!
 	Workloads() *config.Workloads
 }
 
 type Delegated interface {
 	Assign(ctx context.Context, w *config.Workloads) error
 	Assignation(ctx context.Context, w *Worker) (*config.Workload, error)
-	RestartWorkerPool(ctx context.Context) error
+	RestartWorker(ctx context.Context, name string) error
 }
 
 type pool struct {
@@ -30,7 +30,7 @@ type pool struct {
 	version        int64
 	expectedSize   int
 	underVariation bool
-	refreshedPool  bool
+	refreshedPool  bool // @TODO: Rethink!
 	stopChan       chan struct{}
 	mutex          sync.RWMutex
 }
@@ -49,25 +49,38 @@ func NewApp(cmp assigner, not Delegated) *pool {
 	return s
 }
 
-func (a *pool) UpdateExpectedSize(size int) {
+func (a *pool) UpdateExpectedSize(newSize int) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
-	if a.expectedSize == size {
+	if a.expectedSize == newSize {
 		return
 	}
 
-	a.expectedSize = size
+	// @TODO: Simplify this logic
+	if a.expectedSize != 0 {
+		ws := a.geAllWorkers()
+		totalToRefresh := newSize
+		if newSize > a.expectedSize {
+			totalToRefresh = a.expectedSize
+		}
+
+		for i := 0; i < totalToRefresh; i++ {
+			w := ws[i]
+			w.MarkToRefresh()
+		}
+	}
+
+	a.expectedSize = newSize
 	a.underVariation = true
-	a.version++ // @TODO: HOW TO!
+	a.version++
 
-	log.Infof("Pool Version Update %d Size From %d to %d", a.version, a.expectedSize, size)
+	log.Infof("Pool Version Update %d Size From %d to %d", a.version, a.expectedSize, newSize)
 
-	if err := a.state.BalanceWorkload(size, a.version); err != nil {
+	if err := a.state.BalanceWorkload(newSize, a.version); err != nil {
 		log.Errorf("err on balance started %v", err)
 	}
 
-	// @TODO
 	log.Infof("state workload updarte to version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
 	if err := a.delegated.Assign(context.Background(), a.state.Workloads()); err != nil {
 		log.Errorf("config error %v", err)
@@ -127,6 +140,18 @@ func (a *pool) Events() map[string][]Event {
 	return e
 }
 
+func (a *pool) worker(name string) (*Worker, error) {
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
+
+	v, ok := a.index[name]
+	if !ok {
+		log.Infof("pod %s already on pool", name)
+		return nil, fmt.Errorf("no worker %s found", name)
+	}
+	return v, nil
+}
+
 func (a *pool) conciliate() {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -141,29 +166,41 @@ func (a *pool) conciliate() {
 
 	log.Infof("state contiliation version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
 
-	if !a.refreshedPool {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-		if err := a.delegated.RestartWorkerPool(ctx); err != nil {
-			log.Errorf("unable to refresh worker pool, error %v", err)
-		} else {
-			a.refreshedPool = true
-		}
-	}
-
+	//if !a.refreshedPool {
+	//	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	//	defer cancel()
+	//	if err := a.delegated.RestartWorkerPool(ctx); err != nil {
+	//		log.Errorf("unable to refresh worker pool, error %v", err)
+	//	} else {
+	//		a.refreshedPool = true
+	//	}
+	//}
+	//
 	for _, w := range a.geAllWorkers() {
-		asg, err := a.state.Workload(w.Index)
-		if err != nil {
-			log.Errorf("unexpected error getting config %v", err)
-			return
+		if w.NeedsRefresh() {
+			go func(wn string) {
+				time.Sleep(time.Second * 10)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				if err := w.delegated.RestartWorker(ctx, wn); err != nil {
+					log.Errorf("unable to restart worker, error %v", err)
+					return
+				}
+				w.MarkRefreshed()
+			}(w.Name)
 		}
-
-		if asg.Equals(w.GetAssignation()) {
-			continue
-		}
-
-		log.Infof("Conciliation loop, config to slave %s on Version %d", w.Name, a.version)
-		w.Assign(asg)
+		//asg, err := a.state.Workload(w.Index)
+		//if err != nil {
+		//	log.Errorf("unexpected error getting config %v", err)
+		//	return
+		//}
+		//
+		//if asg.Equals(w.GetAssignation()) {
+		//	continue
+		//}
+		//
+		//log.Infof("Conciliation loop, config to slave %s on Version %d", w.Name, a.version)
+		//w.Assign(asg)
 	}
 
 	if a.expectedSize != len(a.index) {
@@ -172,13 +209,13 @@ func (a *pool) conciliate() {
 	}
 
 	// ensure all workers are in the same version
-	for _, w := range a.index {
-		wv := w.GetVersion()
-		if wv != a.version {
-			log.Infof("Pool still on variation, worker %s still on version %d", w.Name, wv)
-			return
-		}
-	}
+	//for _, w := range a.index {
+	//	wv := w.GetVersion()
+	//	if wv != a.version {
+	//		log.Infof("Pool still on variation, worker %s still on version %d", w.Name, wv)
+	//		return
+	//	}
+	//}
 
 	log.Info("Stopping conciliation loop, variation completed!")
 	a.underVariation = false

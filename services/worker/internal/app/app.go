@@ -7,7 +7,7 @@ import (
 )
 
 type App struct {
-	state []cfg.Job
+	state *cfg.Workload
 	mutex sync.Mutex
 }
 
@@ -15,9 +15,15 @@ func NewApp() *App {
 	return &App{}
 }
 
-func (a *App) Assign(version int64, keySet []cfg.Job) error {
-	log.Infof("App Workloads updated version %d Workloads %v", version, keySet)
+func (a *App) Assign(w *cfg.Workload) error {
+	log.Infof("App Workloads updated version %d Workloads %d", w.Version, len(w.Jobs))
+	if a.state == nil {
+		a.state = w
+		return nil
+	}
 
+	i, e := a.state.Difference(w)
+	log.Infof("Workload State Updated version %d includes %v excludes %v", w.Version, i, e)
 	return nil
 }
 

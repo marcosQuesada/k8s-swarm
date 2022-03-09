@@ -71,32 +71,79 @@ func TestOnUpdateExpectedSizeDetectsVariationAndTriesToAssignKeys(t *testing.T) 
 		t.Errorf("min Workloads calls not match, at least %d got %d", atLeast, got)
 	}
 }
-func TestOnUpdateFailureRetriesUntilMaxRetries(t *testing.T) {
+
+func TestPool_ItMarksWorkersToNotifyOnScaleUp(t *testing.T) {
 	asg := &fakeAssigner{}
 	call := &fakeCaller{err: errors.New("fake tiemout")}
 	app := NewApp(asg, call)
 	defer app.Terminate()
 
 	app.UpdateExpectedSize(1)
-	if !app.AddWorkerIfNotExists(0, "fakeSlave", net.ParseIP("127.0.0.1")) {
+	if !app.AddWorkerIfNotExists(0, "fakeSlave-0", net.ParseIP("127.0.0.1")) {
+		t.Fatal("worker addition assertion expected true")
+	}
+	app.UpdateExpectedSize(2)
+	if !app.AddWorkerIfNotExists(1, "fakeSlave-1", net.ParseIP("127.0.0.2")) {
 		t.Fatal("worker addition assertion expected true")
 	}
 
-	// @TODO: Unsecure assertion!
-	time.Sleep(time.Second * 4)
-	if atLeast, got := int32(1), atomic.LoadInt32(&call.assigns); got < atLeast {
+	if atLeast, got := int32(2), atomic.LoadInt32(&call.assigns); got < atLeast {
 		t.Errorf("min Workloads calls not match, at least %d got %d", atLeast, got)
+	}
+	w0, err := app.worker("fakeSlave-0")
+	if err != nil {
+		t.Fatalf("unable to get worker, error %v", err)
+	}
+	if expected, got := NeedsRefresh, w0.state; expected != got {
+		t.Fatalf("expected state does not match, expected %s got %s", expected, got)
+	}
+
+	w1, err := app.worker("fakeSlave-1")
+	if err != nil {
+		t.Fatalf("unable to get worker, error %v", err)
+	}
+	if expected, got := NeedsRefresh, w1.state; expected == got {
+		t.Fatalf("expected state does not match, expected %s got %s", expected, got)
 	}
 }
 
-type fakeAssigner struct{}
+func TestPool_ItMarksWorkersToNotifyOnScaleDown(t *testing.T) {
+	asg := &fakeAssigner{}
+	call := &fakeCaller{err: errors.New("fake tiemout")}
+	app := NewApp(asg, call)
+	defer app.Terminate()
 
-func (a *fakeAssigner) BalanceWorkload(totalWorkers int, version int64) error {
-	return nil
+	app.UpdateExpectedSize(2)
+	if !app.AddWorkerIfNotExists(0, "fakeSlave-0", net.ParseIP("127.0.0.1")) {
+		t.Fatal("worker addition assertion expected true")
+	}
+	if !app.AddWorkerIfNotExists(1, "fakeSlave-1", net.ParseIP("127.0.0.2")) {
+		t.Fatal("worker addition assertion expected true")
+	}
+
+	app.UpdateExpectedSize(1)
+	app.RemoveWorkerByName("fakeSlave-1")
+
+	if atLeast, got := int32(2), atomic.LoadInt32(&call.assigns); got < atLeast {
+		t.Errorf("min Workloads calls not match, at least %d got %d", atLeast, got)
+	}
+	w0, err := app.worker("fakeSlave-0")
+	if err != nil {
+		t.Fatalf("unable to get worker, error %v", err)
+	}
+	if expected, got := NeedsRefresh, w0.state; expected != got {
+		t.Fatalf("expected state does not match, expected %s got %s", expected, got)
+	}
+
 }
 
-func (a *fakeAssigner) Workload(workerIdx int) (*config.Workload, error) {
-	return &config.Workload{}, nil
+type fakeAssigner struct {
+	balanceRequests int32
+}
+
+func (a *fakeAssigner) BalanceWorkload(totalWorkers int, version int64) error {
+	atomic.AddInt32(&a.balanceRequests, 1)
+	return nil
 }
 
 func (a *fakeAssigner) Workloads() *config.Workloads {
@@ -132,6 +179,6 @@ func (f *fakeCaller) Assignation(ctx context.Context, w *Worker) (*config.Worklo
 	return v, nil
 }
 
-func (f *fakeCaller) RestartWorkerPool(ctx context.Context) error {
+func (f *fakeCaller) RestartWorker(ctx context.Context, name string) error {
 	return nil
 }

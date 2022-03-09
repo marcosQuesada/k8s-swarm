@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	// keySetConfig defines static worker Workload Workloads
-	keySetConfig Config
-	keySetMutex  sync.RWMutex
+	// workloadsConfig defines static worker Workload Workloads
+	workloadsConfig Config
+	workloadsMutex  sync.RWMutex
 )
 
 // Config loaded app config
@@ -21,7 +21,7 @@ type Config struct {
 	Version  int64                       `mapstructure:"version"`
 }
 
-func (cfg *Config) HostKeySet(host string) ([]config.Job, error) {
+func (cfg *Config) HostWorkLoad(host string) (*config.Workload, error) {
 	v, ok := cfg.Workload[host]
 	if !ok {
 		return nil, fmt.Errorf("unable to find host %s keySet config %v", host, cfg)
@@ -29,23 +29,23 @@ func (cfg *Config) HostKeySet(host string) ([]config.Job, error) {
 
 	log.Infof("Loaded %d keys on Host %s", len(v.Jobs), host)
 
-	return v.Jobs, nil
+	return v, nil
 }
 
-// HostKeySet gets assignation Workload to the Host
-func HostKeySet(host string) ([]config.Job, error) {
-	keySetMutex.RLock()
-	defer keySetMutex.RUnlock()
+// HostWorkLoad gets assignation Workload to the Host
+func HostWorkLoad(host string) (*config.Workload, error) {
+	workloadsMutex.RLock()
+	defer workloadsMutex.RUnlock()
 
-	return keySetConfig.HostKeySet(host)
+	return workloadsConfig.HostWorkLoad(host)
 }
 
 // Version reply version config
 func Version() int64 {
-	keySetMutex.RLock()
-	defer keySetMutex.RUnlock()
+	workloadsMutex.RLock()
+	defer workloadsMutex.RUnlock()
 
-	return keySetConfig.Version
+	return workloadsConfig.Version
 }
 
 type VersionAdapter struct {
@@ -62,12 +62,12 @@ func (v *VersionAdapter) Version() int64 {
 	return Version()
 }
 
-func (v *VersionAdapter) Workload() []config.Job {
-	keySet, err := HostKeySet(v.hostName)
+func (v *VersionAdapter) Workload() *config.Workload {
+	w, err := HostWorkLoad(v.hostName)
 	if err != nil {
-		return []config.Job{}
+		return nil
 	}
-	return keySet
+	return w
 }
 
 func HostName(defaultHostName string) string {
@@ -90,9 +90,9 @@ func LoadConfig(configFilePath, configFile string) error {
 
 	log.Infof("Using config file: %s", viper.ConfigFileUsed())
 
-	keySetMutex.Lock()
-	defer keySetMutex.Unlock()
-	if err := viper.Unmarshal(&keySetConfig); err != nil {
+	workloadsMutex.Lock()
+	defer workloadsMutex.Unlock()
+	if err := viper.Unmarshal(&workloadsConfig); err != nil {
 		return fmt.Errorf("unable to unMarshall config, error %v", err)
 	}
 

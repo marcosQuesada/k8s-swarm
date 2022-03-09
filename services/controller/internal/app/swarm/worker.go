@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/marcosQuesada/k8s-swarm/pkg/config"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"sync"
 	"time"
@@ -34,8 +33,27 @@ func newWorker(idx int, name string, IP net.IP, d Delegated, freq time.Duration)
 		delegated: d,
 	}
 
-	go wait.Until(w.conciliate, freq, w.stopChan)
+	//go wait.Until(w.conciliate, freq, w.stopChan)
 	return w
+}
+
+func (w *Worker) NeedsRefresh() bool {
+	w.stateMutex.RLock()
+	defer w.stateMutex.RUnlock()
+
+	return w.state == NeedsRefresh
+}
+
+func (w *Worker) MarkToRefresh() {
+	w.stateMutex.Lock()
+	defer w.stateMutex.Unlock()
+	w.state = NeedsRefresh
+}
+
+func (w *Worker) MarkRefreshed() {
+	w.stateMutex.Lock()
+	defer w.stateMutex.Unlock()
+	w.state = Syncing
 }
 
 func (w *Worker) conciliate() {

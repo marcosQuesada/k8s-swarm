@@ -12,7 +12,7 @@ import (
 
 type provider interface {
 	Version() int64
-	Workload() []config.Job
+	Workload() *config.Workload
 }
 
 // VersionChecker handles health checker handler, replying commit version and release date
@@ -32,7 +32,7 @@ func (a *VersionChecker) versionHandler(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set(httpPkg.ContentType, httpPkg.JSONContentType)
 	log.Infof("requested version, got %d jobs %v", a.accessor.Version(), a.accessor.Workload())
 	wrk := &config.Workload{
-		Jobs:    a.accessor.Workload(),
+		Jobs:    a.accessor.Workload().Jobs, //@TODO: Ensure not nil
 		Version: a.accessor.Version(),
 	}
 	if err := json.NewEncoder(w).Encode(wrk); err != nil {

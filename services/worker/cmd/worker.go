@@ -23,7 +23,7 @@ import (
 const DefaultHostName = "swarm-worker-0"
 
 type Processor interface {
-	Assign(version int64, jobs []cfg.Job) error
+	Assign(w *cfg.Workload) error
 }
 
 // workerCmd represents the worker command
@@ -88,14 +88,14 @@ func updateWorkloadFromConfig(mng Processor) error {
 		log.Fatalf("unable to unMarshall config, error %v", err)
 	}
 
-	keySet, err := cfg2.HostKeySet(cfg2.HostName(DefaultHostName))
+	wl, err := cfg2.HostWorkLoad(cfg2.HostName(DefaultHostName))
 	if err != nil {
 		log.Errorf("unable to get Job set assignation, error %v", err)
 
 		return nil
 	}
 
-	if err := mng.Assign(cfg2.Version(), keySet); err != nil {
+	if err := mng.Assign(wl); err != nil {
 		return fmt.Errorf("unable to start manager, error %v", err)
 	}
 

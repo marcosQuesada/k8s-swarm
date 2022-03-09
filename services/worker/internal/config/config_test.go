@@ -17,7 +17,7 @@ func TestItLoadsConfigFromFileAndDumpsSlaveKeySetConfigByHostName(t *testing.T) 
 		t.Fatalf("host value do not match, expected %s got %s", expected, got)
 	}
 
-	keySet, err := keySetConfig.HostKeySet(host)
+	keySet, err := workloadsConfig.HostWorkLoad(host)
 	if err != nil {
 		t.Fatalf("unexpected error getting Workload, error %v", err)
 	}

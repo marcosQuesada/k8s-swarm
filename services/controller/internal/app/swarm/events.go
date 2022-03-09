@@ -11,12 +11,13 @@ type State string
 
 const (
 	Booting             State = "booting"
-	WaitingAssignation        = "waiting config"
-	AssignationDefined        = "config defined"
-	CheckingVersion           = "checking version"
-	Syncing                   = "syncing"
-	WaitingSyncComplete       = "waiting sync complete"
-	Synced                    = "synced"
+	NeedsRefresh        State = "needs refresh"
+	WaitingAssignation  State = "waiting config"
+	AssignationDefined  State = "config defined"
+	CheckingVersion     State = "checking version"
+	Syncing             State = "syncing"
+	WaitingSyncComplete State = "waiting sync complete"
+	Synced              State = "synced"
 )
 
 type Event interface {

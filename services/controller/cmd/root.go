@@ -61,7 +61,7 @@ func init() {
 		namespace = p
 	}
 
-	rootCmd.PersistentFlags().StringVar(&watchLabel, "label", "swarm-slave", "label to watch statefulsets and pods")
+	rootCmd.PersistentFlags().StringVar(&watchLabel, "label", "swarm-worker", "label to watch statefulsets and pods")
 	if p := os.Getenv("WATCHED_LABEL"); p != "" {
 		watchLabel = p
 	}

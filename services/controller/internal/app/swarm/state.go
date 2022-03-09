@@ -70,6 +70,13 @@ func (a *state) cleanAssignations(totalWorkers int) {
 	}
 }
 
+func (a *state) Workloads() *config.Workloads {
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
+
+	return a.config
+}
+
 func (a *state) Workload(workerIdx int) (*config.Workload, error) {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
@@ -80,13 +87,6 @@ func (a *state) Workload(workerIdx int) (*config.Workload, error) {
 	}
 
 	return asg, nil
-}
-
-func (a *state) Workloads() *config.Workloads {
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
-
-	return a.config
 }
 
 func (a *state) size() int {

@@ -33,7 +33,8 @@ var externalCmd = &cobra.Command{
 		cl := k8s.BuildExternalClient()
 		dl := configmap.NewProvider(cl, namespace, workersConfigMapName, watchLabel)
 		vst := ht.NewVersionProvider(cfg.HttpPort)
-		ex := swarm2.NewExecutor(dl, vst)
+		pdl := pod2.NewProvider(cl, namespace)
+		ex := swarm2.NewExecutor(dl, vst, pdl)
 		st := swarm2.NewState(config.Jobs, watchLabel)
 		app := swarm2.NewApp(st, ex)
 

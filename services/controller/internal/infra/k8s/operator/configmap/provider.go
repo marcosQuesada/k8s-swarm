@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	cfg "github.com/marcosQuesada/k8s-swarm/pkg/config"
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/yaml.v3"
@@ -75,18 +74,6 @@ func (p *Provider) RefreshWorkerPool(ctx context.Context) error {
 		return fmt.Errorf("unable to patch deployment %s error %v", p.deploymentName, err)
 	}
 
-	return nil
-}
-
-func (p *Provider) RefreshDeployment(ctx context.Context) error {
-	data := fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`, time.Now().String())
-	res, err := p.client.AppsV1().Deployments(p.namespace).Patch(ctx, p.deploymentName, types.StrategicMergePatchType, []byte(data), metav1.PatchOptions{FieldManager: "kubectl-rollout"})
-	if err != nil {
-		context.Background()
-		return fmt.Errorf("unable to patch deployment %s error %v", p.deploymentName, err)
-	}
-
-	spew.Dump(res)
 	return nil
 }
 
