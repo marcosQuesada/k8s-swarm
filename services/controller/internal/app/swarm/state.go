@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"github.com/marcosQuesada/k8s-swarm/pkg/config"
 	log "github.com/sirupsen/logrus"
-	"math"
 	"sync"
 )
 
 type state struct {
 	setName string
-	keySet  []config.Job
+	jobs    []config.Job
 	config  *config.Workloads
 	mutex   sync.RWMutex
 }
@@ -18,7 +17,7 @@ type state struct {
 func NewState(keySet []config.Job, setName string) *state {
 	log.Infof("Swarm sharder initialized with %d total Workloads", len(keySet))
 	return &state{
-		keySet:  keySet,
+		jobs:    keySet,
 		setName: setName,
 		config:  &config.Workloads{Workloads: map[string]*config.Workload{}},
 	}
@@ -35,22 +34,27 @@ func (a *state) BalanceWorkload(totalWorkers int, version int64) error {
 		return nil
 	}
 
-	totalParts := int(math.Ceil(float64(len(a.keySet)) / float64(totalWorkers)))
+	partSize := len(a.jobs) / totalWorkers
+	modulePartSize := len(a.jobs) % totalWorkers
 	for i := 0; i < totalWorkers; i++ {
 		workerName := fmt.Sprintf("%s-%d", a.setName, i)
 		if _, ok := a.config.Workloads[workerName]; !ok {
 			a.config.Workloads[workerName] = &config.Workload{}
 		}
 
-		start := i * totalParts
-		end := (i + 1) * totalParts
-		if end > len(a.keySet) {
-			end = len(a.keySet)
+		size := partSize
+		if i < modulePartSize {
+			size++
+		}
+		start := i * size
+		end := (i + 1) * size
+		if end > len(a.jobs) {
+			end = len(a.jobs)
 		}
 
-		a.config.Workloads[workerName] = &config.Workload{Jobs: a.keySet[start:end]}
+		a.config.Workloads[workerName] = &config.Workload{Jobs: a.jobs[start:end]}
 
-		log.Infof("Worker %s total jobs %d", workerName, len(a.keySet[start:end]))
+		log.Infof("Worker %s total jobs %d", workerName, len(a.jobs[start:end]))
 	}
 
 	a.config.Version = version
