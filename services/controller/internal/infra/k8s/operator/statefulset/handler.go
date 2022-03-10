@@ -11,7 +11,7 @@ type Pool interface {
 	UpdateExpectedSize(size int)
 }
 
-type Handler struct{
+type Handler struct {
 	state Pool
 }
 
@@ -32,17 +32,7 @@ func (h *Handler) Created(ctx context.Context, obj runtime.Object) {
 func (h *Handler) Updated(ctx context.Context, new, old runtime.Object) {
 	ss := new.(*api.StatefulSet)
 
-	// @TODO Replicas Spec
-	// CurrentReplicas
-	// AvailableReplicas:
-	// ReadyReplicas
 	h.state.UpdateExpectedSize(int(*ss.Spec.Replicas))
-
-/*	diff := cmp.Diff(old, new)
-	cleanDiff := strings.TrimFunc(diff, func(r rune) bool {
-		return !unicode.IsGraphic(r)
-	})
-	fmt.Println("UPDATE STATEFULSET diff: ", cleanDiff)*/
 }
 
 func (h *Handler) Deleted(ctx context.Context, obj runtime.Object) {

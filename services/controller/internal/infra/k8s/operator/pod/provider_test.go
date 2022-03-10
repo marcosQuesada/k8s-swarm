@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
+// @TODO: Use k8s client mock
 func TestNewProvider_ItDeletesPodToRefreshByNewOne(t *testing.T) {
+	t.Skip()
 	var namespace = "swarm"
 
 	clientset := k8s.BuildExternalClient()

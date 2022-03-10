@@ -10,14 +10,9 @@ const DefaultWorkerFrequency = time.Second * 5
 type State string
 
 const (
-	Booting             State = "booting"
-	NeedsRefresh        State = "needs refresh"
-	WaitingAssignation  State = "waiting config"
-	AssignationDefined  State = "config defined"
-	CheckingVersion     State = "checking version"
-	Syncing             State = "syncing"
-	WaitingSyncComplete State = "waiting sync complete"
-	Synced              State = "synced"
+	NeedsRefresh       State = "needs refresh"
+	WaitingAssignation State = "waiting config"
+	Syncing            State = "syncing"
 )
 
 type Event interface {

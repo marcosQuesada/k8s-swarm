@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+// @TODO: Increase testing coverage, include conciliation loop and state assertions
+
 func TestOnGetAllWorkersReturnsAnOrderedListOfWorkers(t *testing.T) {
 	asg := &fakeAssigner{}
 	call := &fakeCaller{}

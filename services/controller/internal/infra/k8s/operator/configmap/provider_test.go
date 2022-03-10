@@ -9,7 +9,9 @@ import (
 	"testing"
 )
 
+// @TODO: Use k8s client mock
 func TestNewProvider_ItUpdatesConfigMapOnAssignWorkload(t *testing.T) {
+	t.Skip()
 	var namespace = "swarm"
 	var configMapName = "swarm-worker-config"
 	var deploymentName = "swarm-worker"
@@ -36,7 +38,9 @@ func TestNewProvider_ItUpdatesConfigMapOnAssignWorkload(t *testing.T) {
 	}
 }
 
-func TestNewProvider_ItGetsWorloadsFromConfigMap(t *testing.T) {
+// @TODO: Use k8s client mock
+func TestNewProvider_ItGetsWorkloadsFromConfigMap(t *testing.T) {
+	t.Skip()
 	var namespace = "swarm"
 	var configMapName = "swarm-worker-config"
 	var deploymentName = "swarm-worker"
