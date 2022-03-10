@@ -27,6 +27,7 @@ At the end the Operator tries to ensure that pods are using the last version of 
 ## Further Iterations
 - Add CRD to reflect operator state
 - Add QoS policy on the workload streams. This opens the door to dedicate workload jobs to unique pods, behaving as some kind of resource reservation.
+- Allow deterministic assignations in top of Deployments, statefulset as an option
 - Kustomize deploy
 
 ## Development workflow

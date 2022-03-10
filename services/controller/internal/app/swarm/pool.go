@@ -103,8 +103,7 @@ func (a *pool) AddWorkerIfNotExists(idx int, name string, IP net.IP) bool {
 		return false
 	}
 
-	// @TODO. Explicit ScaleUp Mode
-	a.index[name] = newWorker(idx, name, IP, a.delegated, DefaultWorkerFrequency)
+	a.index[name] = newWorker(idx, name, IP, a.delegated)
 
 	log.Debugf("Added Worker to Pool Name %s IP %s length %d, expectedSize %d", name, IP, len(a.index), a.expectedSize)
 
@@ -124,7 +123,6 @@ func (a *pool) RemoveWorkerByName(name string) {
 	w.Terminate()
 	delete(a.index, name)
 
-	// @TODO. Explicit ScaleDown Mode
 	if len(a.index) != a.expectedSize {
 		a.underVariation = true
 	}
@@ -132,18 +130,6 @@ func (a *pool) RemoveWorkerByName(name string) {
 
 func (a *pool) Terminate() {
 	close(a.stopChan)
-}
-
-func (a *pool) Events() map[string][]Event {
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
-
-	e := map[string][]Event{}
-	for _, worker := range a.geAllWorkers() {
-		e[worker.Name] = worker.Events()
-	}
-
-	return e
 }
 
 func (a *pool) worker(name string) (*Worker, error) {
