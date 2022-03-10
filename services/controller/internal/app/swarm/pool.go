@@ -32,7 +32,7 @@ type pool struct {
 	version        int64
 	expectedSize   int
 	underVariation bool
-	refreshedPool  bool // @TODO: Rethink!
+	refreshedPool  bool // @TODO: Rethink! Note Scheduled execution Ts
 	stopChan       chan struct{}
 	mutex          sync.RWMutex
 }
@@ -70,7 +70,6 @@ func (a *pool) UpdateExpectedSize(newSize int) {
 		log.Errorf("err on balance started %v", err)
 	}
 
-	log.Infof("state workload update to version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
 	if err := a.delegated.Assign(context.Background(), a.state.Workloads()); err != nil {
 		log.Errorf("config error %v", err)
 	}
@@ -81,15 +80,18 @@ func (a *pool) UpdateExpectedSize(newSize int) {
 
 	ws := a.geAllWorkers()
 	totalToRefresh := newSize
-	if newSize > a.expectedSize {
-		totalToRefresh = a.expectedSize
+	if newSize > previousSize {
+		totalToRefresh = previousSize
 	}
-	log.Infof("Total %d Workers to Refresh to version %d", totalToRefresh, a.version)
+	a.refreshedPool = false
+	log.Infof("Total %d Workers marked to Refresh %d to version %d", len(ws), totalToRefresh, a.version)
 	for i := 0; i < totalToRefresh; i++ {
+		if i > len(ws)-1 { // @TODO: TEST IT PROPERLY!
+			return
+		}
 		w := ws[i]
 		w.MarkToRefresh()
 	}
-
 }
 
 func (a *pool) AddWorkerIfNotExists(idx int, name string, IP net.IP) bool {
@@ -113,13 +115,12 @@ func (a *pool) RemoveWorkerByName(name string) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
-	log.Infof("Removing Worker from Pool Name %s", name)
-
 	w, ok := a.index[name]
 	if !ok {
 		return
 	}
 
+	log.Infof("Removing Worker %s from Pool Name", name)
 	w.Terminate()
 	delete(a.index, name)
 

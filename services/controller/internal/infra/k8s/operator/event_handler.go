@@ -20,6 +20,7 @@ type eventHandler struct {
 	handler Handler
 }
 
+// @TODO: Segregate and refactor
 func NewEventHandler(f Filter, q workqueue.RateLimitingInterface, i Indexer, h Handler) *eventHandler { // @TODO: interface
 	return &eventHandler{
 		filter:  f,
