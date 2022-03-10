@@ -19,17 +19,19 @@ const conciliationFrequency = time.Second * 5
 
 var ErrNoAppLabelFound = errors.New("no app label found ")
 
-type Handler interface {
+type handler interface {
 	Created(ctx context.Context, obj runtime.Object)
 	Updated(ctx context.Context, old, new runtime.Object)
 	Deleted(ctx context.Context, obj runtime.Object)
 }
 
+// ListWatcher defines list and watch methods
 type ListWatcher interface {
 	List(options metav1.ListOptions) (runtime.Object, error)
 	Watch(options metav1.ListOptions) (watch.Interface, error)
 }
 
+// Filter segregates object selection
 type Filter interface {
 	Object() runtime.Object
 	Validate(runtime.Object) error
@@ -40,11 +42,11 @@ type controller struct {
 	informer cache.Controller
 	queue    workqueue.RateLimitingInterface
 
-	handler Handler
+	handler handler
 }
 
 // @TODO: Clean out! It must be testeable!!!
-func Build(handler Handler, filter Filter, watcher ListWatcher) *controller {
+func Build(handler handler, filter Filter, watcher ListWatcher) *controller {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	indexer, informer := cache.NewIndexerInformer(
@@ -176,7 +178,7 @@ func (c *controller) processNextItem() bool {
 
 	e := ev.(Event)
 	err := c.handleEvent(e)
-	c.handleErr(err, e.GetKey())
+	c.handleError(err, e.GetKey())
 
 	return true
 }
@@ -210,28 +212,18 @@ func (c *controller) handleEvent(e Event) error {
 	return nil
 }
 
-// handleErr checks if an error happened and makes sure we will retry later.
-func (c *controller) handleErr(err error, key interface{}) {
+func (c *controller) handleError(err error, key interface{}) {
 	if err == nil {
-		// Forget about the #AddRateLimited history of the key on every successful synchronization.
-		// This ensures that future processing of updates for this key is not delayed because of
-		// an outdated error history.
 		c.queue.Forget(key)
 		return
 	}
-
-	// This controller retries 5 times if something goes wrong. After that, it stops trying.
 	if c.queue.NumRequeues(key) < 5 {
-		log.Infof("Error syncing pod %v: %v", key, err)
-
-		// Re-enqueue the key rate limited. Based on the rate limiter on the
-		// queue and the re-enqueue history, the key will be processed later again.
+		log.Errorf("Error syncing pod %v: %v", key, err)
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	c.queue.Forget(key)
-	// Report to an external entity that, even after several retries, we could not successfully process this key
 	utilruntime.HandleError(err)
-	log.Infof("Dropping pod %q out of the queue: %v", key, err)
+	log.Errorf("Dropping pod %q out of the queue: %v", key, err)
 }

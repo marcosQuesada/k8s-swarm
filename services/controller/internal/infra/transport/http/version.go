@@ -11,14 +11,17 @@ import (
 	"strings"
 )
 
+// VersionProvider implements an http provider to get worker version
 type VersionProvider struct {
 	remotePort string
 }
 
+// NewVersionProvider instantiates version http provider
 func NewVersionProvider(port string) *VersionProvider {
 	return &VersionProvider{remotePort: port}
 }
 
+// Assignation request worker assignation
 func (v *VersionProvider) Assignation(ctx context.Context, IP net.IP) (*config.Workload, error) {
 	u := &url.URL{
 		Scheme: "http",

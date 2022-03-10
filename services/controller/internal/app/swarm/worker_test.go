@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// @TODO: REMOVE IT!
+// @TODO: Development test, remove IT!
 func TestQueueBehaviourDevelopmentTest(t *testing.T) {
 	queue := workqueue.New()
 	queue.Add(ap.Job("fooo_0"))

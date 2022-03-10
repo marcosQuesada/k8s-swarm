@@ -13,24 +13,5 @@ workloads:
       - "stream:xxctv10:updated"
       - "stream:xxctv11:updated"
       - "stream:xxctv12:updated"
-  swarm-worker-1:
-    jobs:
-      - "stream:xxctv13:updated"
-      - "stream:xxctv14:updated"
-      - "stream:yxctv1:updated"
-      - "stream:yxctv2:updated"
-      - "stream:yxctv3:updated"
-      - "stream:xabcn0:updated"
-      - "stream:xacb01:updated"
-      - "stream:xacb02:updated"
-      - "stream:xacb03:updated"
-      - "stream:xacb04:updated"
-      - "stream:sportnews0:updated"
-  swarm-worker-2:
-    jobs:
-      - "stream:cars:new"
-      - "stream:cars:updated"
-      - "stream:cars:deleted"
-      - "stream:bikes:new"
 
 version: 1

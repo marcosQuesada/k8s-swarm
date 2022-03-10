@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 // @TODO: Increase testing coverage, include conciliation loop and state assertions
@@ -17,7 +16,7 @@ import (
 func TestOnGetAllWorkersReturnsAnOrderedListOfWorkers(t *testing.T) {
 	asg := &fakeAssigner{}
 	call := &fakeCaller{}
-	app := NewApp(asg, call)
+	app := NewWorkerPool(asg, call)
 	// avoid any noise from conciliation loop
 	app.Terminate()
 
@@ -47,11 +46,11 @@ func TestOnGetAllWorkersReturnsAnOrderedListOfWorkers(t *testing.T) {
 		t.Fatalf("unexpected worker size, expected %d got %d", expected, got)
 	}
 
-	if expected, got := w1Name, wl[0].Name; expected != got {
+	if expected, got := w1Name, wl[0].name; expected != got {
 		t.Errorf("unexpected first worker, expected %s got %s", expected, got)
 	}
 
-	if expected, got := w3Name, wl[2].Name; expected != got {
+	if expected, got := w3Name, wl[2].name; expected != got {
 		t.Errorf("unexpected first worker, expected %s got %s", expected, got)
 	}
 }
@@ -59,7 +58,7 @@ func TestOnGetAllWorkersReturnsAnOrderedListOfWorkers(t *testing.T) {
 func TestOnUpdateExpectedSizeDetectsVariationAndTriesToAssignKeys(t *testing.T) {
 	asg := &fakeAssigner{}
 	call := &fakeCaller{}
-	app := NewApp(asg, call)
+	app := NewWorkerPool(asg, call)
 	defer app.Terminate()
 
 	app.UpdateExpectedSize(1)
@@ -67,8 +66,6 @@ func TestOnUpdateExpectedSizeDetectsVariationAndTriesToAssignKeys(t *testing.T) 
 		t.Fatal("worker addition assertion expected true")
 	}
 
-	// @TODO: Unsecure assertion!
-	time.Sleep(time.Millisecond * 1500)
 	if atLeast, got := int32(1), atomic.LoadInt32(&call.assigns); got < atLeast {
 		t.Errorf("min Workloads calls not match, at least %d got %d", atLeast, got)
 	}
@@ -77,7 +74,7 @@ func TestOnUpdateExpectedSizeDetectsVariationAndTriesToAssignKeys(t *testing.T) 
 func TestPool_ItMarksWorkersToNotifyOnScaleUp(t *testing.T) {
 	asg := &fakeAssigner{}
 	call := &fakeCaller{err: errors.New("fake tiemout")}
-	app := NewApp(asg, call)
+	app := NewWorkerPool(asg, call)
 	defer app.Terminate()
 
 	app.UpdateExpectedSize(1)
@@ -112,7 +109,7 @@ func TestPool_ItMarksWorkersToNotifyOnScaleUp(t *testing.T) {
 func TestPool_ItMarksWorkersToNotifyOnScaleDown(t *testing.T) {
 	asg := &fakeAssigner{}
 	call := &fakeCaller{err: errors.New("fake tiemout")}
-	app := NewApp(asg, call)
+	app := NewWorkerPool(asg, call)
 	defer app.Terminate()
 
 	app.UpdateExpectedSize(2)
@@ -171,12 +168,12 @@ func (f *fakeCaller) Assign(ctx context.Context, w *config.Workloads) (err error
 	return nil
 }
 
-func (f *fakeCaller) Assignation(ctx context.Context, w *Worker) (*config.Workload, error) {
+func (f *fakeCaller) Assignation(ctx context.Context, w *worker) (*config.Workload, error) {
 	f.mutex.RLock()
 	defer f.mutex.RUnlock()
-	v, ok := f.assignation.Workloads[w.Name]
+	v, ok := f.assignation.Workloads[w.name]
 	if !ok {
-		return nil, fmt.Errorf("index %d not found", w.Index)
+		return nil, fmt.Errorf("index %d not found", w.index)
 	}
 	return v, nil
 }

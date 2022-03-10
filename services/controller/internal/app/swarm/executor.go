@@ -19,7 +19,6 @@ type workerManager interface {
 type delegatedStorage interface {
 	Get(ctx context.Context) (*ap.Workloads, error)
 	Set(ctx context.Context, a *ap.Workloads) error
-	RefreshWorkerPool(ctx context.Context) error
 }
 
 type executor struct {
@@ -41,13 +40,13 @@ func (e *executor) Assign(ctx context.Context, w *ap.Workloads) (err error) {
 	return e.storage.Set(ctx, w)
 }
 
-func (e *executor) Assignation(ctx context.Context, w *Worker) (a *ap.Workload, err error) {
-	log.Infof("Get config to %s IP %s", w.Name, w.IP.String())
+func (e *executor) Assignation(ctx context.Context, w *worker) (a *ap.Workload, err error) {
+	log.Infof("Get config to %s IP %s", w.name, w.IP.String())
 	res, err := e.remotes.Assignation(ctx, w.IP)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get remote assignation on %s error %v", w.Name, err)
+		return nil, fmt.Errorf("unable to get remote assignation on %s error %v", w.name, err)
 	}
-	log.Infof("Received config from %s IP %s version %d jobs %v", w.Name, w.IP.String(), res.Version, len(res.Jobs))
+	log.Infof("Received config from %s IP %s version %d jobs %v", w.name, w.IP.String(), res.Version, len(res.Jobs))
 	return res, nil
 }
 

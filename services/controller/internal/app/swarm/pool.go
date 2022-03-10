@@ -12,34 +12,34 @@ import (
 	"time"
 )
 
-const defaultSleepBeforeNotify = time.Second * 5
+const defaultSleepBeforeNotify = time.Second * 2
+const defaultTimeout = time.Second * 1
 
 type assigner interface {
 	BalanceWorkload(totalWorkers int, version int64) error
 	Workloads() *config.Workloads
 }
 
-type Delegated interface {
+type delegated interface {
 	Assign(ctx context.Context, w *config.Workloads) error
-	Assignation(ctx context.Context, w *Worker) (*config.Workload, error)
 	RestartWorker(ctx context.Context, name string) error
 }
 
 type pool struct {
-	index          map[string]*Worker
+	index          map[string]*worker
 	state          assigner
-	delegated      Delegated
+	delegated      delegated
 	version        int64
 	expectedSize   int
 	underVariation bool
-	refreshedPool  bool // @TODO: Rethink! Note Scheduled execution Ts
 	stopChan       chan struct{}
 	mutex          sync.RWMutex
 }
 
-func NewApp(cmp assigner, not Delegated) *pool {
+// NewWorkerPool instantiates workers pool
+func NewWorkerPool(cmp assigner, not delegated) *pool {
 	s := &pool{
-		index:          make(map[string]*Worker),
+		index:          make(map[string]*worker),
 		state:          cmp,
 		delegated:      not,
 		underVariation: true,
@@ -51,26 +51,27 @@ func NewApp(cmp assigner, not Delegated) *pool {
 	return s
 }
 
-func (a *pool) UpdateExpectedSize(newSize int) {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
+// UpdateExpectedSize sets pool expected size
+func (p *pool) UpdateExpectedSize(newSize int) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	if a.expectedSize == newSize {
+	if p.expectedSize == newSize {
 		return
 	}
 
-	previousSize := a.expectedSize
-	a.expectedSize = newSize
-	a.underVariation = true
-	a.version++
+	previousSize := p.expectedSize
+	p.expectedSize = newSize
+	p.underVariation = true
+	p.version++
 
-	log.Infof("Pool Version Update %d Size From %d to %d", a.version, previousSize, newSize)
+	log.Infof("Pool Version Update %d Size From %d to %d", p.version, previousSize, newSize)
 
-	if err := a.state.BalanceWorkload(newSize, a.version); err != nil {
+	if err := p.state.BalanceWorkload(newSize, p.version); err != nil {
 		log.Errorf("err on balance started %v", err)
 	}
 
-	if err := a.delegated.Assign(context.Background(), a.state.Workloads()); err != nil {
+	if err := p.delegated.Assign(context.Background(), p.state.Workloads()); err != nil {
 		log.Errorf("config error %v", err)
 	}
 
@@ -78,112 +79,89 @@ func (a *pool) UpdateExpectedSize(newSize int) {
 		return
 	}
 
-	ws := a.geAllWorkers()
+	ws := p.geAllWorkers()
 	totalToRefresh := newSize
 	if newSize > previousSize {
 		totalToRefresh = previousSize
 	}
-	a.refreshedPool = false
-	log.Infof("Total %d Workers marked to Refresh %d to version %d", len(ws), totalToRefresh, a.version)
+
+	if len(ws) < totalToRefresh {
+		totalToRefresh = len(ws)
+	}
+
 	for i := 0; i < totalToRefresh; i++ {
-		if i > len(ws)-1 { // @TODO: TEST IT PROPERLY!
-			return
-		}
 		w := ws[i]
 		w.MarkToRefresh()
 	}
+
+	log.Infof("Total %d Workers marked to Refresh %d to version %d", len(ws), totalToRefresh, p.version)
 }
 
-func (a *pool) AddWorkerIfNotExists(idx int, name string, IP net.IP) bool {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
+// AddWorkerIfNotExists register a worker if not exists in the pool
+func (p *pool) AddWorkerIfNotExists(idx int, name string, IP net.IP) bool {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	if _, ok := a.index[name]; ok {
+	if _, ok := p.index[name]; ok {
 		log.Infof("pod %s already on pool", name)
 		return false
 	}
 
-	a.index[name] = newWorker(idx, name, IP, a.delegated)
+	p.index[name] = newWorker(idx, name, IP, p.delegated)
 
-	log.Debugf("Added Worker to Pool Name %s IP %s length %d, expectedSize %d", name, IP, len(a.index), a.expectedSize)
+	log.Debugf("Added worker to Pool name %s IP %s length %d, expectedSize %d", name, IP, len(p.index), p.expectedSize)
 
 	return true
 }
 
-func (a *pool) RemoveWorkerByName(name string) {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
+// RemoveWorkerByName removes worker from pool
+func (p *pool) RemoveWorkerByName(name string) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	w, ok := a.index[name]
-	if !ok {
-		return
-	}
-
-	log.Infof("Removing Worker %s from Pool Name", name)
-	w.Terminate()
-	delete(a.index, name)
-
-	if len(a.index) != a.expectedSize {
-		a.underVariation = true
-	}
+	log.Infof("Removing worker %s from Pool name", name)
+	delete(p.index, name)
 }
 
-func (a *pool) Terminate() {
-	close(a.stopChan)
+// Terminate stops conciliation loop
+func (p *pool) Terminate() {
+	close(p.stopChan)
 }
 
-func (a *pool) worker(name string) (*Worker, error) {
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
+func (p *pool) conciliate() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	v, ok := a.index[name]
-	if !ok {
-		log.Infof("pod %s already on pool", name)
-		return nil, fmt.Errorf("no worker %s found", name)
-	}
-	return v, nil
-}
-
-func (a *pool) conciliate() {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
-
-	if a.expectedSize == 0 {
+	if p.expectedSize == 0 {
 		return
 	}
 
-	if !a.underVariation {
+	if !p.underVariation {
 		return
 	}
 
-	log.Infof("state contiliation version %d, expected slaves: %d on index %d", a.version, a.expectedSize, len(a.index))
+	log.Infof("state contiliation version %d, expected slaves: %d on index %d", p.version, p.expectedSize, len(p.index))
 
-	if a.refreshedPool {
-		a.underVariation = false
-		return
-	}
-
-	for _, w := range a.geAllWorkers() {
+	for _, w := range p.geAllWorkers() {
 		if !w.NeedsRefresh() {
 			continue
 		}
 
-		log.Infof("Request scheduled restart to %s", w.Name)
-		go a.requestRestart(context.Background(), w)
+		log.Infof("Request scheduled restart to %s", w.name)
+		go p.requestRestart(context.Background(), w)
 	}
-	a.refreshedPool = true
 
 	log.Info("Stopping conciliation loop, variation completed!")
-	a.underVariation = false
+	p.underVariation = false
 }
 
-func (a *pool) requestRestart(ctx context.Context, w *Worker) error {
-	log.Infof("Scheduling worker %s refresh", w.Name)
-	time.Sleep(defaultSleepBeforeNotify)
+func (p *pool) requestRestart(ctx context.Context, w *worker) error {
+	log.Infof("Scheduling worker %s refresh", w.name)
+	time.Sleep(defaultSleepBeforeNotify * time.Duration(2*(1+w.index))) // @TODO: Address it!
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	if err := w.delegated.RestartWorker(ctx, w.Name); err != nil {
+	if err := w.delegated.RestartWorker(ctx, w.name); err != nil {
 		log.Errorf("unable to restart worker, error %v", err)
 		return err
 	}
@@ -191,12 +169,24 @@ func (a *pool) requestRestart(ctx context.Context, w *Worker) error {
 	return nil
 }
 
-func (a *pool) geAllWorkers() []*Worker {
+func (p *pool) geAllWorkers() []*worker {
 	var res workerList
-	for _, w := range a.index {
+	for _, w := range p.index {
 		res = append(res, w)
 	}
 	sort.Sort(res)
 
 	return res
+}
+
+func (p *pool) worker(name string) (*worker, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+
+	v, ok := p.index[name]
+	if !ok {
+		log.Infof("pod %s already on pool", name)
+		return nil, fmt.Errorf("no worker %s found", name)
+	}
+	return v, nil
 }

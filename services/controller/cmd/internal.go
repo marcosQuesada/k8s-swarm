@@ -38,7 +38,7 @@ var internalCmd = &cobra.Command{
 		pdl := pod2.NewProvider(cl, namespace)
 		ex := swarm2.NewExecutor(dl, vst, pdl)
 		st := swarm2.NewState(config.Jobs, watchLabel)
-		app := swarm2.NewApp(st, ex)
+		app := swarm2.NewWorkerPool(st, ex)
 
 		podCla := pod2.NewListWatcherAdapter(cl, namespace)
 		podH := pod2.NewHandler(app)

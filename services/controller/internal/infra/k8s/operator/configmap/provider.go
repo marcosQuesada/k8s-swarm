@@ -9,13 +9,12 @@ import (
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"time"
 )
 
 const defaultConfigKey = "config.yml"
 
+// Provider implements config repository in top of configmap
 type Provider struct {
 	client         kubernetes.Interface
 	namespace      string
@@ -23,6 +22,7 @@ type Provider struct {
 	deploymentName string
 }
 
+// NewProvider instantiate configmap provider
 func NewProvider(cl kubernetes.Interface, namespace, configMapName, deploymentName string) *Provider {
 	return &Provider{
 		client:         cl,
@@ -32,6 +32,7 @@ func NewProvider(cl kubernetes.Interface, namespace, configMapName, deploymentNa
 	}
 }
 
+// Set updates workload assignation to configmap
 func (p *Provider) Set(ctx context.Context, a *cfg.Workloads) error {
 	cm, err := p.client.CoreV1().ConfigMaps(p.namespace).Get(ctx, p.configMapName, metav1.GetOptions{})
 	if err != nil {
@@ -53,6 +54,7 @@ func (p *Provider) Set(ctx context.Context, a *cfg.Workloads) error {
 	return nil
 }
 
+// Get returns workload assignation from configmap
 func (p *Provider) Get(ctx context.Context) (*cfg.Workloads, error) {
 	cm, err := p.client.CoreV1().ConfigMaps(p.namespace).Get(ctx, p.configMapName, metav1.GetOptions{})
 	if err != nil {
@@ -64,17 +66,6 @@ func (p *Provider) Get(ctx context.Context) (*cfg.Workloads, error) {
 	}
 	context.Background()
 	return w, nil
-}
-
-// @TODO: Move it to statefulset folder!
-func (p *Provider) RefreshWorkerPool(ctx context.Context) error {
-	data := fmt.Sprintf(`{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"%s"}}}}}`, time.Now().String())
-	_, err := p.client.AppsV1().StatefulSets(p.namespace).Patch(ctx, p.deploymentName, types.StrategicMergePatchType, []byte(data), metav1.PatchOptions{FieldManager: "kubectl-rollout"})
-	if err != nil {
-		return fmt.Errorf("unable to patch deployment %s error %v", p.deploymentName, err)
-	}
-
-	return nil
 }
 
 func (p *Provider) decode(cm *v1.ConfigMap) (*cfg.Workloads, error) {

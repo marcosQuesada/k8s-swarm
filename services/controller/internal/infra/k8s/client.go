@@ -8,6 +8,7 @@ import (
 	"os"
 )
 
+// BuildInternalClient instantiates internal K8s client
 func BuildInternalClient() kubernetes.Interface {
 	restConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -22,6 +23,7 @@ func BuildInternalClient() kubernetes.Interface {
 	return client
 }
 
+// BuildExternalClient instantiates local k8s client with user credentials
 func BuildExternalClient() kubernetes.Interface {
 	kubeConfigPath := os.Getenv("HOME") + "/.kube/config"
 

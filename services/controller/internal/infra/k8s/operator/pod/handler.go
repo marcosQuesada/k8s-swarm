@@ -11,23 +11,27 @@ import (
 	"strings"
 )
 
-var ErrBadStatefulSetPodName = errors.New("malformed pod name, expected statefulset pattern")
+var errBadStatefulSetPodName = errors.New("malformed pod name, expected statefulset pattern")
 
+// Pool models an ordered set of workers
 type Pool interface {
 	AddWorkerIfNotExists(idx int, name string, IP net.IP) bool
 	RemoveWorkerByName(name string)
 }
 
+// Handler process Pod state variations
 type Handler struct {
 	state Pool
 }
 
+// NewHandler instantiates pod handler
 func NewHandler(st Pool) *Handler {
 	return &Handler{
 		state: st,
 	}
 }
 
+// Created on pod creation handler
 func (h *Handler) Created(_ context.Context, obj runtime.Object) {
 	pod := obj.(*api.Pod)
 
@@ -45,9 +49,10 @@ func (h *Handler) Created(_ context.Context, obj runtime.Object) {
 		return
 	}
 
-	log.Infof("Created Pod %s IP %s", pod.Name, pod.Status.PodIP)
+	log.Debugf("Created Pod %s IP %s", pod.Name, pod.Status.PodIP)
 }
 
+// Updated on pod updated handler
 func (h *Handler) Updated(ctx context.Context, new, old runtime.Object) {
 	pod := new.(*api.Pod)
 
@@ -65,12 +70,6 @@ func (h *Handler) Updated(ctx context.Context, new, old runtime.Object) {
 		log.Debugf("Pod %s Condition type %s Status %s", pod.Name, cond.Type, cond.Status)
 	}
 
-	//diff := cmp.Diff(old, new)
-	//cleanDiff := strings.TrimFunc(diff, func(r rune) bool {
-	//	return !unicode.IsGraphic(r)
-	//})
-	//fmt.Println("UPDATE POD diff: ", cleanDiff)
-
 	if !isReady(pod) {
 		log.Debugf("Pod is not ready yet %v", pod.Status.Conditions)
 		return
@@ -86,13 +85,13 @@ func (h *Handler) Updated(ctx context.Context, new, old runtime.Object) {
 		return
 	}
 
-	log.Infof("Updated Pod %s READY", pod.Name)
-
+	log.Debugf("Updated Pod %s READY", pod.Name)
 }
 
+// Deleted on pod deleted handler
 func (h *Handler) Deleted(_ context.Context, obj runtime.Object) {
 	pod := obj.(*api.Pod)
-	log.Infof("Deleted POD %s", pod.Name)
+	log.Debugf("Deleted POD %s", pod.Name)
 
 	h.state.RemoveWorkerByName(pod.Name)
 }
@@ -156,7 +155,7 @@ func isTerminated(pod *api.Pod) bool {
 func podIndex(pod *api.Pod) (int, error) {
 	parts := strings.Split(pod.Name, "-")
 	if len(parts) < 2 {
-		return 0, ErrBadStatefulSetPodName
+		return 0, errBadStatefulSetPodName
 	}
 
 	idx := parts[len(parts)-1]

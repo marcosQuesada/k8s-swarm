@@ -14,8 +14,8 @@ type state struct {
 	mutex   sync.RWMutex
 }
 
+// NewState holds workload assignations in the workers pool
 func NewState(keySet []config.Job, setName string) *state {
-	log.Infof("Swarm sharder initialized with %d total Workloads", len(keySet))
 	return &state{
 		jobs:    keySet,
 		setName: setName,
@@ -23,23 +23,24 @@ func NewState(keySet []config.Job, setName string) *state {
 	}
 }
 
-func (a *state) BalanceWorkload(totalWorkers int, version int64) error {
+// BalanceWorkload balances configured workload between workers
+func (s *state) BalanceWorkload(totalWorkers int, version int64) error {
 	log.Infof("State balance started, Recalculate assignations total workers: %d", totalWorkers)
 
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
 	if totalWorkers == 0 {
-		a.cleanAssignations(0)
+		s.cleanAssignations(0)
 		return nil
 	}
 
-	partSize := len(a.jobs) / totalWorkers
-	modulePartSize := len(a.jobs) % totalWorkers
+	partSize := len(s.jobs) / totalWorkers
+	modulePartSize := len(s.jobs) % totalWorkers
 	for i := 0; i < totalWorkers; i++ {
-		workerName := fmt.Sprintf("%s-%d", a.setName, i)
-		if _, ok := a.config.Workloads[workerName]; !ok {
-			a.config.Workloads[workerName] = &config.Workload{}
+		workerName := fmt.Sprintf("%s-%d", s.setName, i)
+		if _, ok := s.config.Workloads[workerName]; !ok {
+			s.config.Workloads[workerName] = &config.Workload{}
 		}
 
 		size := partSize
@@ -48,44 +49,39 @@ func (a *state) BalanceWorkload(totalWorkers int, version int64) error {
 		}
 		start := i * size
 		end := (i + 1) * size
-		if end > len(a.jobs) {
-			end = len(a.jobs)
+		if end > len(s.jobs) {
+			end = len(s.jobs)
 		}
 
-		a.config.Workloads[workerName] = &config.Workload{Jobs: a.jobs[start:end]}
+		s.config.Workloads[workerName] = &config.Workload{Jobs: s.jobs[start:end]}
 
-		log.Infof("Worker %s total jobs %d", workerName, len(a.jobs[start:end]))
+		log.Infof("worker %s total jobs %d", workerName, len(s.jobs[start:end]))
 	}
 
-	a.config.Version = version
+	s.config.Version = version
 
 	// on Downscaling
-	if totalWorkers < len(a.config.Workloads) {
-		a.cleanAssignations(totalWorkers)
+	if totalWorkers < len(s.config.Workloads) {
+		s.cleanAssignations(totalWorkers)
 	}
 
 	return nil
 }
 
-func (a *state) cleanAssignations(totalWorkers int) {
-	orgSize := len(a.config.Workloads)
-	for i := totalWorkers; i < orgSize; i++ {
-		delete(a.config.Workloads, fmt.Sprintf("%s-%d", a.setName, i))
-	}
+// Workloads returns last computed workloads assignations
+func (s *state) Workloads() *config.Workloads {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	return s.config
 }
 
-func (a *state) Workloads() *config.Workloads {
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
+// Workload returns concrete workload
+func (s *state) Workload(workerIdx int) (*config.Workload, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
-	return a.config
-}
-
-func (a *state) Workload(workerIdx int) (*config.Workload, error) {
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
-
-	asg, ok := a.config.Workloads[fmt.Sprintf("%s-%d", a.setName, workerIdx)]
+	asg, ok := s.config.Workloads[fmt.Sprintf("%s-%d", s.setName, workerIdx)]
 	if !ok {
 		return nil, fmt.Errorf("Workloads not found on index %d", workerIdx)
 	}
@@ -93,9 +89,16 @@ func (a *state) Workload(workerIdx int) (*config.Workload, error) {
 	return asg, nil
 }
 
-func (a *state) size() int {
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
+func (s *state) cleanAssignations(totalWorkers int) {
+	orgSize := len(s.config.Workloads)
+	for i := totalWorkers; i < orgSize; i++ {
+		delete(s.config.Workloads, fmt.Sprintf("%s-%d", s.setName, i))
+	}
+}
 
-	return len(a.config.Workloads)
+func (s *state) size() int {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	return len(s.config.Workloads)
 }

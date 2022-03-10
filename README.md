@@ -1,16 +1,24 @@
 # K8s Swarm Operator
 
 Swarm Operator solves scenarios were Collaborative Workload consumption is required, scenarios  where parallel job processing does not increase overall performance.
+
 They are special cases as they are not the typical deployment scenarios, but there are many scenarios like that, from stream consuming where packets cannot be marked as processing (in-flight), so that, multiple consumers will just reprocess the same source.
+
 As example, dedicated streams as real time video, long run jobs (database backups) and many others.
 
 ## Project Goals
-THe Operator starts reading from a list of stream source that must be assigned in a deterministic way over a pool of workers. The overall idea here is that workload assignation over the workers is deterministic, computed many times will return the same association.
+Operator starts reading from a list of stream source that must be assigned in a deterministic way over a pool of workers. 
+
+The overall idea here is that workload assignation over the workers is deterministic, computed many times will return the same association.
+
 An easy aprox to get this scenario is using StatefulSets, as they are ordered, scaling Up/Down will be addresses always at the end of the statefulset.
-The Operator listens for labeled statefulsets an its associated pods, that way is able to create a pool of members that will assume its part in the worload, to do so the operator balances all the jobs to match the total number of workers.
-Operator computes job association to all workers in the pool giving as a result an updated confimap that is used by the workers to get is workload tasks.
+
+Operator listens for labeled statefulsets an its associated pods, that way is able to create a pool of members that will assume its part in the worload, to do so the operator balances all the jobs to match the total number of workers.
+
+It computes job association to all workers in the pool giving as a result an updated confimap that is used by the workers to get is workload tasks.
 
 First iteration was achieving exactly that, workload assignation to any worker in a shared worker config file based on configmps, on that stage workers are expected to watch config changes and perform hot reload.
+
 Config Map changes need time to be propagated to all mounted volumes, it's just an eventual consistent mechanism, so we know that it should happen but not foresee exactly when.
 
 A second iteration has been done, the operator calculates what are the workers that must be refreshed due to config changes, as a result the operator schedules Pod deletion to speed up workers refresh state.
@@ -22,7 +30,8 @@ Still on POC consolidation, tons of things need to be improved, starting from te
 
 ## Project base
 Right now implementation is quite lazy, as config convergence between assignations and worker state is not direct queried, so that, worker pods do not know nothing about operator existence. In fact they just read its own config part.
-At the end the Operator tries to ensure that pods are using the last version of the configmap but it is not querying pods to check their versions.
+
+At the end this Operator tries to ensure that pods are using the last version of the configmap, but it is not done querying pods to check their versions.
 
 ## Further Iterations
 - Add CRD to reflect operator state
@@ -103,7 +112,7 @@ Scaling Up/Down
 On Scaling Up Operator will pick up pool changes, balance workloads over the new updated workers pool, updated workers shared config (swarm-worker-config configmap), it will schedule to reboot worker0 and 1, so that, after refresh cycle all workers will belong to the same config version.
 
 ## Build docker image
-Bare in mind that minikube images are expected to be local, if you check k8s manifest you will see that imagePullPolicy is Never in all the cases. Before building images ensure minikube is pointing docker env:
+Bear in mind that minikube images are expected to be local, if you check k8s manifest you will see that imagePullPolicy is Never in all the cases. Before building images ensure minikube is pointing docker env:
 ```
 eval $(minikube docker-env)
 ```
@@ -130,20 +139,6 @@ kubectl rollout restart statefulset/swarm-worker
 ```
 
 ## Pending development things
-- Clean configs
-  - local (Single node)
-  - worker configMap as placeHolder (empty until controller assignation)
+- Increase test coverage, refactor controller
 - Track controller config version
-  - Using configMap
-- controller 
-  - http interface [Declare on receipts]
-    - useful to introspect doing port-forwarding
-- Config Issues ¿?
-  - Separated builds
-    - worker with config
-    - controller does not need it
-  - but:
-    - we can consider controller config as the keys to share (example)
-- Kustomize entry point
-  - kustomize build swarm-operator/envs/dev &> dev.yaml
-  - It can dump config.yaml to configmap
+

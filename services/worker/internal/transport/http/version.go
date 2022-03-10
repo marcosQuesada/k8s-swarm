@@ -31,8 +31,13 @@ func NewVersionChecker(p provider) *VersionChecker {
 func (a *VersionChecker) versionHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(httpPkg.ContentType, httpPkg.JSONContentType)
 	log.Infof("requested version, got %d jobs %v", a.accessor.Version(), a.accessor.Workload())
+
+	var jobs []config.Job
+	if a.accessor.Workload() != nil {
+		jobs = a.accessor.Workload().Jobs
+	}
 	wrk := &config.Workload{
-		Jobs:    a.accessor.Workload().Jobs, //@TODO: Ensure not nil
+		Jobs:    jobs,
 		Version: a.accessor.Version(),
 	}
 	if err := json.NewEncoder(w).Encode(wrk); err != nil {
