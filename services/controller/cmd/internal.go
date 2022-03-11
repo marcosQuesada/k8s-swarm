@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	appsv1 "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/util/workqueue"
 	"net/http"
 	"os"
 	"os/signal"
@@ -40,20 +41,25 @@ var internalCmd = &cobra.Command{
 		st := swarm2.NewState(config.Jobs, watchLabel)
 		app := swarm2.NewWorkerPool(st, ex)
 
-		podCla := pod2.NewListWatcherAdapter(cl, namespace)
+		podLwa := pod2.NewListWatcherAdapter(cl, namespace)
 		podH := pod2.NewHandler(app)
-		podFilter := operator2.NewFilter(watchLabel, &apiv1.Pod{})
-		podCtl := operator2.Build(podH, podFilter, podCla)
+		podSelector := operator2.NewSelector(watchLabel)
+		podEventQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		podEventHandler := operator2.NewResourceEventHandler(podSelector, podEventQueue)
+		podEvp := operator2.NewEventProcessor(&apiv1.Pod{}, podLwa, podEventHandler, podH)
+		podCtl := operator2.NewController(podEvp, podEventQueue)
 
-		stlCla := statefulset2.NewListWatcherAdapter(cl, namespace)
-		stlH := statefulset2.NewHandler(app)
-		stsFilter := operator2.NewFilter(watchLabel, &appsv1.StatefulSet{})
-		stlCtl := operator2.Build(stlH, stsFilter, stlCla)
+		stsLwa := statefulset2.NewListWatcherAdapter(cl, namespace)
+		stsH := statefulset2.NewHandler(app)
+		stsSelector := operator2.NewSelector(watchLabel)
+		stsEventQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		stsEventHandler := operator2.NewResourceEventHandler(stsSelector, stsEventQueue)
+		stsEvp := operator2.NewEventProcessor(&appsv1.StatefulSet{}, stsLwa, stsEventHandler, stsH)
+		stsCtl := operator2.NewController(stsEvp, stsEventQueue)
 
 		stopCh := make(chan struct{})
-		defer close(stopCh)
-		go podCtl.Run(podControllerWorkers, stopCh)
-		go stlCtl.Run(stsControllerWorkers, stopCh)
+		go podCtl.Run(stopCh)
+		go stsCtl.Run(stopCh)
 
 		router := mux.NewRouter()
 		ch := ht.NewChecker(config2.Commit, config2.Date)
@@ -81,6 +87,7 @@ var internalCmd = &cobra.Command{
 		if err := srv.Close(); err != nil {
 			log.Errorf("unexpected error on http server close %v", err)
 		}
+		close(stopCh)
 	},
 }
 

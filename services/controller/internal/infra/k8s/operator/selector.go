@@ -1,29 +1,26 @@
 package operator
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-type filter struct {
-	label  string
-	object runtime.Object
+var ErrNoAppLabelFound = errors.New("no app label found ")
+
+type selector struct {
+	label string
 }
 
-func NewFilter(watchedLabel string, objectType runtime.Object) Filter {
-	return &filter{
-		label:  watchedLabel,
-		object: objectType,
+func NewSelector(watchedLabel string) Selector {
+	return &selector{
+		label: watchedLabel,
 	}
 }
 
-func (f *filter) Object() runtime.Object {
-	return f.object
-}
-
-func (f *filter) Validate(obj runtime.Object) error {
+func (f *selector) Validate(obj runtime.Object) error {
 	v, err := f.hasWatchedLabel(obj)
 	if err != nil {
 		log.Debugf("unable to get object %T app label, error %v", obj, err)
@@ -33,15 +30,15 @@ func (f *filter) Validate(obj runtime.Object) error {
 	if !v {
 		l, err := f.getAppLabel(obj)
 		if err != nil {
-			return fmt.Errorf("filter validate error, not watched label, app label not found, skip object, error %v", err)
+			return fmt.Errorf("selector validate error, not watched label, app label not found, skip object, error %v", err)
 		}
-		return fmt.Errorf("label %s not handled", l)
+		return fmt.Errorf("label %s not queue", l)
 	}
 
 	return nil
 }
 
-func (f *filter) hasWatchedLabel(obj runtime.Object) (bool, error) {
+func (f *selector) hasWatchedLabel(obj runtime.Object) (bool, error) {
 	label, err := f.getAppLabel(obj)
 	if err != nil {
 		return false, fmt.Errorf("meta app label error: %v", err)
@@ -50,7 +47,7 @@ func (f *filter) hasWatchedLabel(obj runtime.Object) (bool, error) {
 	return label == f.label, nil
 }
 
-func (f *filter) getAppLabel(obj runtime.Object) (string, error) {
+func (f *selector) getAppLabel(obj runtime.Object) (string, error) {
 	acc, err := meta.Accessor(obj)
 	if err != nil {
 		return "", fmt.Errorf("meta accessor error: %v", err)

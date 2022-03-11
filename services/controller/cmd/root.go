@@ -16,8 +16,6 @@ var (
 	namespace            string
 	watchLabel           string
 	workersConfigMapName string
-	podControllerWorkers int
-	stsControllerWorkers int
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -70,7 +68,4 @@ func init() {
 	if p := os.Getenv("WORKERS_CONFIGMAP_NAME"); p != "" {
 		workersConfigMapName = p
 	}
-
-	rootCmd.PersistentFlags().IntVar(&podControllerWorkers, "pod", 1, "workers on pod controller")
-	rootCmd.PersistentFlags().IntVar(&stsControllerWorkers, "sts", 1, "workers on statefulset controller")
 }
