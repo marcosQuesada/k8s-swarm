@@ -17,7 +17,6 @@ type workerManager interface {
 }
 
 type delegatedStorage interface {
-	Get(ctx context.Context) (*ap.Workloads, error)
 	Set(ctx context.Context, a *ap.Workloads) error
 }
 
@@ -40,6 +39,7 @@ func (e *executor) Assign(ctx context.Context, w *ap.Workloads) (err error) {
 	return e.storage.Set(ctx, w)
 }
 
+// @TODO: refactor and remove
 func (e *executor) Assignation(ctx context.Context, w *worker) (a *ap.Workload, err error) {
 	log.Infof("Get config to %s IP %s", w.name, w.IP.String())
 	res, err := e.remotes.Assignation(ctx, w.IP)

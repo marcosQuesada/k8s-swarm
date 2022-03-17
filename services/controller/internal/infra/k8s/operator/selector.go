@@ -61,3 +61,13 @@ func (f *selector) getAppLabel(obj runtime.Object) (string, error) {
 
 	return v, nil
 }
+
+type nopValidator struct{}
+
+func NewNopValidator() Selector {
+	return &nopValidator{}
+}
+
+func (n *nopValidator) Validate(obj runtime.Object) error {
+	return nil
+}
