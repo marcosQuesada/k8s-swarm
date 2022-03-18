@@ -34,7 +34,7 @@ var internalCmd = &cobra.Command{
 		log.Infof("controller internal listening on namespace %s label %s Version %s release date %s http server on port %s", namespace, watchLabel, config2.Commit, config2.Date, config2.HttpPort)
 
 		cl := k8s.BuildInternalClient()
-		swcl := k8s.BuildSwarmExternalClient()
+		swcl := k8s.BuildSwarmInternalClient()
 		cm := configmap.NewProvider(cl, namespace, workersConfigMapName, watchLabel)
 		vst := cht.NewVersionProvider(config2.HttpPort)
 		pdl := pod2.NewProvider(cl, namespace)

@@ -41,6 +41,21 @@ func BuildExternalClient() kubernetes.Interface {
 	return client
 }
 
+// BuildSwarmInternalClient instantiates internal swarm client
+func BuildSwarmInternalClient() versioned.Interface {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatalf("unable to get In cluster config, error %v", err)
+	}
+
+	client, err := versioned.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("unable to build client from config, error %v", err)
+	}
+
+	return client
+}
+
 // BuildSwarmExternalClient instantiates local swarm client with user credentials
 func BuildSwarmExternalClient() versioned.Interface {
 	kubeConfigPath := os.Getenv("HOME") + "/.kube/config"
