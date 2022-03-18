@@ -6,8 +6,10 @@ import (
 	cfg "github.com/marcosQuesada/k8s-swarm/pkg/config"
 	swarm2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/app/swarm"
 	"github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s"
+	"github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/apis/swarm/v1alpha1"
 	operator2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator"
 	"github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator/configmap"
+	"github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator/crd"
 	pod2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator/pod"
 	statefulset2 "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/operator/statefulset"
 	ht "github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/transport/http"
@@ -32,32 +34,45 @@ var externalCmd = &cobra.Command{
 		log.Infof("controller external listening on namespace %s label %s Version %s release date %s http server on port %s", namespace, watchLabel, cfg.Commit, cfg.Date, cfg.HttpPort)
 
 		cl := k8s.BuildExternalClient()
-		dl := configmap.NewProvider(cl, namespace, workersConfigMapName, watchLabel)
-		vst := ht.NewVersionProvider(cfg.HttpPort)
+		swcl := k8s.BuildSwarmExternalClient()
+		cm := configmap.NewProvider(cl, namespace, workersConfigMapName, watchLabel)
+		vst := ht.NewVersionProvider(cfg.HttpPort) // @TODO: REFACTOR AND REMOVE
 		pdl := pod2.NewProvider(cl, namespace)
-		ex := swarm2.NewExecutor(dl, vst, pdl)
+
+		swl := crd.NewProvider(swcl, namespace, watchLabel)
+		mex := crd.NewProviderMiddleware(cm, swl)
+
+		ex := swarm2.NewExecutor(mex, vst, pdl)
 		st := swarm2.NewState(config.Jobs, watchLabel)
 		app := swarm2.NewWorkerPool(st, ex)
+		selector := operator2.NewSelector(watchLabel)
 
 		podLwa := pod2.NewListWatcherAdapter(cl, namespace)
 		podH := pod2.NewHandler(app)
-		podSelector := operator2.NewSelector(watchLabel)
 		podEventQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-		podEventHandler := operator2.NewResourceEventHandler(podSelector, podEventQueue)
+		podEventHandler := operator2.NewResourceEventHandler(selector, podEventQueue)
 		podEvp := operator2.NewEventProcessor(&apiv1.Pod{}, podLwa, podEventHandler, podH)
 		podCtl := operator2.NewController(podEvp, podEventQueue)
 
 		stsLwa := statefulset2.NewListWatcherAdapter(cl, namespace)
 		stsH := statefulset2.NewHandler(app)
-		stsSelector := operator2.NewSelector(watchLabel)
 		stsEventQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-		stsEventHandler := operator2.NewResourceEventHandler(stsSelector, stsEventQueue)
+		stsEventHandler := operator2.NewResourceEventHandler(selector, stsEventQueue)
 		stsEvp := operator2.NewEventProcessor(&appsv1.StatefulSet{}, stsLwa, stsEventHandler, stsH)
 		stsCtl := operator2.NewController(stsEvp, stsEventQueue)
+
+		nopSel := operator2.NewNopValidator()
+		swarmLwa := crd.NewListWatcherAdapter(swcl, namespace)
+		swarmH := crd.NewHandler()
+		swarmEventQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+		swarmEventHandler := operator2.NewResourceEventHandler(nopSel, swarmEventQueue)
+		swarmEvp := operator2.NewEventProcessor(&v1alpha1.Swarm{}, swarmLwa, swarmEventHandler, swarmH)
+		swarmCtl := operator2.NewController(swarmEvp, swarmEventQueue)
 
 		stopCh := make(chan struct{})
 		go podCtl.Run(stopCh)
 		go stsCtl.Run(stopCh)
+		go swarmCtl.Run(stopCh)
 
 		router := mux.NewRouter()
 		srv := &http.Server{

@@ -142,3 +142,8 @@ kubectl rollout restart statefulset/swarm-worker
 - Increase test coverage, refactor controller
 - Track controller config version
 
+## NOTES
+### CRD API generation
+```
+vendor/k8s.io/code-generator/generate-groups.sh all github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/generated github.com/marcosQuesada/k8s-swarm/services/controller/internal/infra/k8s/apis "swarm:v1alpha1" --go-header-file ./hack/boilerplate.go.txt --output-base "$(dirname "${BASH_SOURCE[0]}")/" -v 3 
+```

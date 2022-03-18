@@ -55,7 +55,7 @@ type Job string
 // Workload definitions from config
 type Workload struct {
 	Jobs    []Job `mapstructure:"jobs" json:"jobs"`
-	Version int64 `mapstructure:"version" json:"version"`
+	Version int64 `mapstructure:"version" json:"version"` // @TODO: REMOVE IT!
 }
 
 // Workloads defines all workload assignations to workers
