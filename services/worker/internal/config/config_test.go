@@ -22,7 +22,7 @@ func TestItLoadsConfigFromFileAndDumpsSlaveKeySetConfigByHostName(t *testing.T) 
 		t.Fatalf("unexpected error getting Workload, error %v", err)
 	}
 
-	if expected, got := 12, len(keySet); expected != got {
+	if expected, got := 12, len(keySet.Jobs); expected != got {
 		t.Errorf("expected keys do not match, expected %d got %d", expected, got)
 	}
 }

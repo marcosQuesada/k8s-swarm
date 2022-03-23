@@ -17,8 +17,6 @@ RUN echo "building k8s swarm service: ${SERVICE} on commit: ${COMMIT} date: ${DA
 
 RUN CGO_ENABLED=0 go build -ldflags "-X github.com/marcosQuesada/k8s-swarm/config.Commit=${COMMIT} -X github.com/marcosQuesada/k8s-swarm/config.Date=${DATE}" ./services/${SERVICE}
 
-RUN ls -l services/${SERVICE}/config
-
 # final stage
 FROM alpine:3.11.5
 ARG SERVICE
